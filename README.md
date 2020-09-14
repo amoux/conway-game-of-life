@@ -1,6 +1,6 @@
 # Conway's Game of Life
 
-![demo](src/demo.png)
+![game-of-life-demo](src/demo.gif)
 
 > Usage
 
