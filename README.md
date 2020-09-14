@@ -30,24 +30,17 @@ Each cell contains two grids; `root` and `hidden` for current and next states.
 Initialize the game of life for a single cell by iterating `num_steps` and calling the `cell.forward()` method.
 
 ```python
-cell = conway.Cell(shape=(20, 25), probe=7)
+C = conway.Cell(shape=(20, 25), probe=7)
 
 steps = 50
-for step in range(steps):
-    stats = cell.forward()
-    conway.render_jupyter(
-        cell=cell,
-        step=step,
-        stats=stats,
-        state='hidden',
-        cellcolor='cy',
-        gridcolor='cb',
-    )
-    conway.fps(29)
+for t in range(steps):
+    stats = C.forward()
+    conway.render_jupyter(C, t, stats, ccolor='cy', gcolor='cb')
+    conway.fps(16)
 ...
 ```
 
-Here's an example of a grid after 29 steps.
+Here's an example of a grid after 49 steps.
 
 ```markdown
    steps: 49, born: 0, killed: 440, survived: 60
@@ -102,12 +95,12 @@ for C in batch:
 ```python
 max_steps = 60
 for C in batch:
-    step = 0
-    while step < max_steps:
+    t = 0
+    while t < max_steps:
         stats = C.forward()
-        conway.render_jupyter(C, step, stats)
+        conway.render_jupyter(C, t, stats)
         conway.fps(10)
-        step += 1
+        t += 1
 ...
 ```
 

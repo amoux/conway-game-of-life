@@ -19,8 +19,8 @@ class NearestNeighbors(List[CellState]):
         return list(filter(lambda cell: cell.state == 0, self))
 
     def __repr__(self) -> str:
-        return '{}(alive={}, dead={})'.format(
-            self.__class__.__name__, self.alive, self.dead)
+        return '{}(alive={}, size={})'.format(
+            self.__class__.__name__, self.alive, len(self))
 
 
 def encode_neighbors(row: int, col: int, cell: CellType) -> NearestNeighbors:

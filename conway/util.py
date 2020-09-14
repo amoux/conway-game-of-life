@@ -11,7 +11,9 @@ except ImportError as e:
 
 CellType = TypeVar('CellType')
 
+ST_FORMAT = "born: {born}, killed: {killed}, survived: {survived}"
 
+C_PADDING = " "
 C_COLORS = {
     "cr": "🔴",
     "cg": "🟢",
@@ -29,9 +31,6 @@ C_COLORS = {
     "so": "🟧"
 }
 
-C_PADDING = " "
-ST_FORMAT = "born: {born}, killed: {killed}, survived: {survived}"
-
 
 @dataclass
 class Stats:
@@ -42,12 +41,11 @@ class Stats:
 
 def fps(rate=10):
     """Shortcut for time.sleep(1/rate)."""
-    time.sleep(1/rate)
+    time.sleep(1 / rate)
 
 
 def clear_console() -> None:
-    """Clear the console using a system command based on OS.
-    """
+    """Clear the console using a system command based on OS."""
     if sys.platform.startswith("win"):
         os.system("cls")
     elif sys.platform.startswith("linux"):
@@ -78,12 +76,12 @@ def render_console(cell: CellType,
                    step: Optional[int] = None,
                    stats: Optional[Union[str, Stats]] = None,
                    state="root",
-                   cellcolor="cr",
-                   gridcolor="cb",
+                   ccolor="cr",
+                   gcolor="cb",
                    ) -> None:
     clear_console()
-    alive_cell_color = C_COLORS[cellcolor]
-    dead_cell_color = C_COLORS[gridcolor]
+    alive_cell_color = C_COLORS[ccolor]
+    dead_cell_color = C_COLORS[gcolor]
 
     grid = cell.grids()[state]
 
@@ -115,11 +113,11 @@ def render_jupyter(cell: CellType,
                    step: Optional[int] = None,
                    stats: Optional[Union[str, Stats]] = None,
                    state="root",
-                   cellcolor="cr",
-                   gridcolor="cb",
+                   ccolor="cr",
+                   gcolor="cb",
                    ) -> None:
-    alive_cell_color = C_COLORS[cellcolor]
-    dead_cell_color = C_COLORS[gridcolor]
+    alive_cell_color = C_COLORS[ccolor]
+    dead_cell_color = C_COLORS[gcolor]
 
     grid = cell.grids()[state]
 
