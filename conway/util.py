@@ -1,6 +1,8 @@
 import os
 import sys
-from typing import Optional, TypeVar
+import time
+from dataclasses import dataclass, field
+from typing import Optional, TypeVar, Union
 
 try:
     from IPython.display import clear_output
@@ -10,21 +12,37 @@ except ImportError as e:
 CellType = TypeVar('CellType')
 
 
-CELL_COLORS = {
-    "blue": "🔵",
-    "red": "🔴",
-    "green": "♍",
-    "purple": "♒",
-    "white": "⚪",
-    "black": "⚫",
-    "yello": "♌",
+C_COLORS = {
+    "cr": "🔴",
+    "cg": "🟢",
+    "cp": "🟣",
+    "cw": "⚪",
+    "cb": "⚫",
+    "cy": "🟡",
+    "co": "🟠",
+    "sr": "🟥",
+    "sg": "🟩",
+    "sp": "🟪",
+    "sw": "⬜",
+    "sb": "⬛",
+    "sy": "🟨",
+    "so": "🟧"
 }
 
-CELL_PADDING = " "
-STATS = (
-    "\n\tsteps: {step} gen-id: {genid}, alive: "
-    "{alive}, hidden: {hidden}, dead: {dead}\n\n\r"
-)
+C_PADDING = " "
+ST_FORMAT = "born: {born}, killed: {killed}, survived: {survived}"
+
+
+@dataclass
+class Stats:
+    born: int = field(default=0, hash=True)
+    killed: int = field(default=0, hash=True)
+    survived: int = field(default=0, hash=True)
+
+
+def fps(rate=10):
+    """Shortcut for time.sleep(1/rate)."""
+    time.sleep(1/rate)
 
 
 def clear_console() -> None:
@@ -58,22 +76,25 @@ def resize_console(nrows: int, ncols: int) -> None:
 
 def render_console(cell: CellType,
                    step: Optional[int] = None,
+                   stats: Optional[Union[str, Stats]] = None,
                    state="root",
-                   cellcolor="red",
-                   gridcolor="black",
-                   stats: Optional[str] = None,
+                   cellcolor="cr",
+                   gridcolor="cb",
                    ) -> None:
     clear_console()
-    alive_cell_color = CELL_COLORS[cellcolor]
-    dead_cell_color = CELL_COLORS[gridcolor]
+    alive_cell_color = C_COLORS[cellcolor]
+    dead_cell_color = C_COLORS[gridcolor]
 
     grid = cell.grids()[state]
 
     output = []
-    if step is not None:
-        output += [f"\b\tSteps: {step}\n\r"]
-    elif stats is not None:
-        output += [f"\b\t{stats}\n\r"]
+    header = "" if step is None else f"\bsteps: {step}, "
+    if stats is not None:
+        if isinstance(stats, Stats):
+            header += ST_FORMAT.format_map(stats.__dict__)
+        else:
+            header = f"{stats}"
+        output += [f"{header}\n\r"]
 
     for i in range(cell.shape[0]):
         for j in range(cell.shape[1]):
@@ -85,28 +106,31 @@ def render_console(cell: CellType,
             output.append(cell_state)
         output.append("\n\r")
 
-    padding = CELL_PADDING * len(alive_cell_color)
+    padding = C_PADDING * len(alive_cell_color)
     sequence = "".join(output)
     print(sequence, end=padding)
 
 
 def render_jupyter(cell: CellType,
                    step: Optional[int] = None,
+                   stats: Optional[Union[str, Stats]] = None,
                    state="root",
-                   cellcolor="red",
-                   gridcolor="black",
-                   stats: Optional[str] = None,
+                   cellcolor="cr",
+                   gridcolor="cb",
                    ) -> None:
-    alive_cell_color = CELL_COLORS[cellcolor]
-    dead_cell_color = CELL_COLORS[gridcolor]
+    alive_cell_color = C_COLORS[cellcolor]
+    dead_cell_color = C_COLORS[gridcolor]
 
     grid = cell.grids()[state]
 
     output = []
-    if step is not None:
-        output += [f"\b\tSteps: {step}\n\r"]
-    elif stats is not None:
-        output += [f"\b\t{stats}\n\r"]
+    header = "" if step is None else f"steps: {step}, "
+    if stats is not None:
+        if isinstance(stats, Stats):
+            header += ST_FORMAT.format_map(stats.__dict__)
+        else:
+            header = f"{stats}"
+        output += [f"{header}\n\r"]
 
     for i in range(cell.shape[0]):
         for j in range(cell.shape[1]):
@@ -119,6 +143,6 @@ def render_jupyter(cell: CellType,
         output.append("\n\r")
 
     clear_output(True)
-    padding = CELL_PADDING * len(alive_cell_color)
+    padding = C_PADDING * len(alive_cell_color)
     sequence = "".join(output)
     print(sequence, end=padding)
