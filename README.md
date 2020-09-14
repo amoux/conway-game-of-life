@@ -1,5 +1,7 @@
 # Conway's Game of Life
 
+![demo](src/demo.png)
+
 > Usage
 
 Construct a new `Cell` object.
