@@ -1,16 +1,23 @@
-import random
+import enum
+import random as rand
 from collections import OrderedDict
-from copy import deepcopy
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 from .nearest import NearestNeighbors, encode_neighbors
 from .util import Stats
 
 
+@enum.unique
+class state(enum.IntEnum):
+    BORN = 0
+    KILLED = 1
+    SURVIVED = 2
+
+
 class Grid(object):
     """Base body for an individual cell."""
 
-    def __init__(self, nrows: int = 10, ncols: int = 10, probe: int = 7):
+    def __init__(self, nrows: int = 16, ncols: int = 32, probe: int = 7):
         self.nrows = nrows
         self.ncols = ncols
         self.probe = probe
@@ -18,7 +25,7 @@ class Grid(object):
         self.hidden = self.base()
 
     def state(self) -> int:
-        return 1 if random.randint(0, self.probe) == 0 else 0
+        return 1 if rand.randint(0, self.probe) == 0 else 0
 
     def base(self) -> List[List[int]]:
         return [[0 for col in range(self.ncols)]
@@ -31,9 +38,25 @@ class Grid(object):
                 grid[row][col] = self.state()
         return grid
 
+    def invert(self) -> None:
+        """Inverse the root and hidden grids in-place.
+        ```python
+        grid = Grid()  # initial: root | hidden
+        grid.invert()  # method : hidden | root
+         ~ grid        # bitwise: root | hidden
+        ```
+        """
+        self.__invert__()
+
+    def __invert__(self):
+        self.root, self.hidden = self.hidden, self.root
+
 
 class Cell(Grid):
-    def __init__(self, shape: Tuple[int, int] = (10, 10), probe: int = 7):
+    dead_id = 0
+    alive_id = 1
+
+    def __init__(self, shape: Tuple[int, int] = (16, 32), probe: int = 7):
         assert sum((shape)) >= 6, \
             f'A grid most be of shape `6x6` or greater, not {shape}'
         super(Cell, self).__init__(*shape, probe)
@@ -44,23 +67,26 @@ class Cell(Grid):
     def grids(self) -> Dict[str, List[List[int]]]:
         return {'root': self.root, 'hidden': self.hidden}
 
-    def forward(self) -> Stats:
-        stats = Stats()
+    def scan(self) -> List[int]:
+        observation = [0, 0, 0]  # <born, killed, survived>
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                 self.nn = encode_neighbors(row=i, col=j, cell=self)
                 if self.nn.alive < 2 or self.nn.alive > 3:
-                    self.hidden[i][j] = 0
-                    stats.killed += 1
+                    self.hidden[i][j] = self.dead_id
+                    observation[state.KILLED] += 1
                 elif self.nn.alive == 3 and self.root[i][j] == 0:
-                    self.hidden[i][j] = 1
-                    stats.born += 1
+                    self.hidden[i][j] = self.alive_id
+                    observation[state.BORN] += 1
                 else:
                     self.hidden[i][j] = self.root[i][j]
-                    stats.survived += 1
+                    observation[state.SURVIVED] += 1
+        return observation
 
-        self.root, self.hidden = (deepcopy(self.hidden),
-                                  deepcopy(self.root))
+    def forward(self) -> Stats:
+        obs = self.scan()
+        stats = Stats(*obs)
+        self.invert()
         return stats
 
     def reset(self) -> 'Cell':

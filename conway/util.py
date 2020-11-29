@@ -1,17 +1,13 @@
 import os
 import sys
 import time
-from dataclasses import dataclass, field
-from typing import Optional, TypeVar, Union
+from dataclasses import asdict, dataclass, field
+from typing import Optional, Union
 
 try:
     from IPython.display import clear_output
 except ImportError as e:
     print(e)
-
-CellType = TypeVar('CellType')
-
-ST_FORMAT = "born: {born}, killed: {killed}, survived: {survived}"
 
 C_PADDING = " "
 C_COLORS = {
@@ -30,6 +26,9 @@ C_COLORS = {
     "sy": "🟨",
     "so": "🟧"
 }
+C_SQUARE_COLORS = {k: v for k, v in C_COLORS.items() if k[0] == 's'}
+C_CIRCLE_COLORS = {k: v for k, v in C_COLORS.items() if k[0] == 'c'}
+ST_FORMAT = "born: {born}, killed: {killed}, survived: {survived}"
 
 
 @dataclass
@@ -37,6 +36,33 @@ class Stats:
     born: int = field(default=0, hash=True)
     killed: int = field(default=0, hash=True)
     survived: int = field(default=0, hash=True)
+
+
+def stringify_param_class(cls_obj, tmpl="{}: {}", suffix=" | "):
+    tmpl = tmpl.format  # verify by calling the format attribute
+    if isinstance(cls_obj, dict):
+        cls_obj = cls_obj.items()
+    elif hasattr(cls_obj, '_asdict'):
+        cls_obj = dict(cls_obj._asdict())
+    else:
+        cls_obj = dict(cls_obj.__dict__.items())
+    mapped = [tmpl(k, v) for k, v in cls_obj.items()]
+    strseq = suffix.join(mapped)
+    return strseq
+
+
+def process_header(stats=None, step=None):
+    header = "" if step is None else f"\bsteps: {step}, "
+    if stats is not None:
+        if isinstance(stats, str):
+            header = f"{stats}"
+        elif isinstance(stats, Stats):
+            header += ST_FORMAT.format_map(asdict(stats))
+        elif isinstance(stats, dict) \
+                or hasattr(stats, '_asdict') \
+                or hasattr(stats, '__dict__'):
+            header += stringify_param_class(stats)
+    return header
 
 
 def fps(rate=10):
@@ -72,32 +98,26 @@ def resize_console(nrows: int, ncols: int) -> None:
               "operating system is not supported.\n\r")
 
 
-def render_console(cell: CellType,
-                   step: Optional[int] = None,
-                   stats: Optional[Union[str, Stats]] = None,
-                   state="root",
-                   ccolor="cr",
-                   gcolor="cb",
-                   ) -> None:
+def render_console(
+        cell,
+        step: Optional[int] = None,
+        stats: Optional[Union[str, Stats]] = None,
+        state: str = "root",
+        ccolor: str = "cr",
+        gcolor: str = "cb"
+) -> None:
     clear_console()
+    output = []
     alive_cell_color = C_COLORS[ccolor]
     dead_cell_color = C_COLORS[gcolor]
-
     grid = cell.grids()[state]
-
-    output = []
-    header = "" if step is None else f"\bsteps: {step}, "
-    if stats is not None:
-        if isinstance(stats, Stats):
-            header += ST_FORMAT.format_map(stats.__dict__)
-        else:
-            header = f"{stats}"
-        output += [f"{header}\n\r"]
+    header = process_header(stats, step=step)
+    output += [f"{header}\n\r"]
 
     for i in range(cell.shape[0]):
         for j in range(cell.shape[1]):
             cell_state = ""
-            if grid[i][j] == 0:
+            if grid[i][j] == 0:  # <dead cell id>
                 cell_state = dead_cell_color
             else:
                 cell_state = alive_cell_color
@@ -109,31 +129,25 @@ def render_console(cell: CellType,
     print(sequence, end=padding)
 
 
-def render_jupyter(cell: CellType,
-                   step: Optional[int] = None,
-                   stats: Optional[Union[str, Stats]] = None,
-                   state="root",
-                   ccolor="cr",
-                   gcolor="cb",
-                   ) -> None:
+def render_jupyter(
+    cell,
+    step: Optional[int] = None,
+    stats: Optional[Union[str, Stats]] = None,
+    state: str = "root",
+    ccolor: str = "cr",
+    gcolor: str = "cb",
+) -> None:
+    output = []
     alive_cell_color = C_COLORS[ccolor]
     dead_cell_color = C_COLORS[gcolor]
-
     grid = cell.grids()[state]
-
-    output = []
-    header = "" if step is None else f"steps: {step}, "
-    if stats is not None:
-        if isinstance(stats, Stats):
-            header += ST_FORMAT.format_map(stats.__dict__)
-        else:
-            header = f"{stats}"
-        output += [f"{header}\n\r"]
+    header = process_header(stats, step=step)
+    output += [f"{header}\n\r"]
 
     for i in range(cell.shape[0]):
         for j in range(cell.shape[1]):
             cell_state = ""
-            if grid[i][j] == 0:
+            if grid[i][j] == 0:  # <dead cell id>
                 cell_state = dead_cell_color
             else:
                 cell_state = alive_cell_color
