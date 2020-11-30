@@ -2,12 +2,20 @@ import os
 import sys
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Optional, Union
+from typing import Any, Callable, Optional, Union, overload
 
 try:
     from IPython.display import clear_output
 except ImportError as e:
     print(e)
+
+
+@dataclass
+class Stats:
+    born: int = field(default=0, hash=True)
+    killed: int = field(default=0, hash=True)
+    survived: int = field(default=0, hash=True)
+
 
 C_PADDING = " "
 C_COLORS = {
@@ -30,18 +38,14 @@ C_SQUARE_COLORS = {k: v for k, v in C_COLORS.items() if k[0] == 's'}
 C_CIRCLE_COLORS = {k: v for k, v in C_COLORS.items() if k[0] == 'c'}
 ST_FORMAT = "born: {born}, killed: {killed}, survived: {survived}"
 
-
-@dataclass
-class Stats:
-    born: int = field(default=0, hash=True)
-    killed: int = field(default=0, hash=True)
-    survived: int = field(default=0, hash=True)
+Function = Callable[[
+    Any, Optional[int], Union[str, Stats, None], str, str, str], None]
 
 
 def stringify_param_class(cls_obj, tmpl="{}: {}", suffix=" | "):
     tmpl = tmpl.format  # verify by calling the format attribute
     if isinstance(cls_obj, dict):
-        cls_obj = cls_obj.items()
+        cls_obj = dict(cls_obj.items())
     elif hasattr(cls_obj, '_asdict'):
         cls_obj = dict(cls_obj._asdict())
     else:

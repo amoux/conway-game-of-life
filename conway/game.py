@@ -38,6 +38,12 @@ class Grid(object):
                 grid[row][col] = self.state()
         return grid
 
+    def flatten(self) -> Tuple[List[int], List[int]]:
+        def flat(x):
+            return [j for i in x for j in i]
+        root, hidden = map(flat, (self.root, self.hidden))
+        return root, hidden
+
     def invert(self) -> None:
         """Inverse the root and hidden grids in-place.
         ```python
