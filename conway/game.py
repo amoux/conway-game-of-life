@@ -8,7 +8,7 @@ from .util import Stats
 
 
 @enum.unique
-class state(enum.IntEnum):
+class CellState(enum.IntEnum):
     BORN = 0
     KILLED = 1
     SURVIVED = 2
@@ -74,19 +74,22 @@ class Cell(Grid):
         return {'root': self.root, 'hidden': self.hidden}
 
     def scan(self) -> List[int]:
+        alive_id, dead_id = self.alive_id, self.dead_id
+        shape, nearest_neighbors = self.shape, encode_neighbors
         observation = [0, 0, 0]  # <born, killed, survived>
-        for i in range(self.shape[0]):
-            for j in range(self.shape[1]):
-                self.nn = encode_neighbors(row=i, col=j, cell=self)
-                if self.nn.alive < 2 or self.nn.alive > 3:
-                    self.hidden[i][j] = self.dead_id
-                    observation[state.KILLED] += 1
-                elif self.nn.alive == 3 and self.root[i][j] == 0:
-                    self.hidden[i][j] = self.alive_id
-                    observation[state.BORN] += 1
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                self.nn = nearest_neighbors(row=i, col=j, cell=self)
+                num_alive_neighbors = self.nn.alive
+                if num_alive_neighbors < 2 or num_alive_neighbors > 3:
+                    self.hidden[i][j] = dead_id
+                    observation[CellState.KILLED] += 1
+                elif num_alive_neighbors == 3 and self.root[i][j] == 0:
+                    self.hidden[i][j] = alive_id
+                    observation[CellState.BORN] += 1
                 else:
                     self.hidden[i][j] = self.root[i][j]
-                    observation[state.SURVIVED] += 1
+                    observation[CellState.SURVIVED] += 1
         return observation
 
     def forward(self) -> Stats:

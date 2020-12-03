@@ -139,7 +139,7 @@ from conway import fps, all_blocks
 cell_colors = list(all_blocks.keys())
 cell_colors.pop(cell_colors.index('sb'))
 
-def color_choice():
+def cellcolor():
     return conway.rand.choice(cell_colors)
 
 @dataclass
@@ -162,18 +162,18 @@ env = conway.Env(
 ngens = 5
 t = 0
 gen = 0
-color = color_choice()
+color = cellcolor()  # random cell color per generation.
 while gen < ngens:
     stats, loss, done = env.step(t)
-    hist = Hist(gen, loss=loss, **stats)
-    env.render(t+1, hist, ccolor=color)
+    hist = Hist(gen+1, loss=loss, **stats)
+    env.render(t, hist, ccolor=color)
     fps(16)
-    if done:  # similar to open-ai's gym api.
+    if done:
         env = env.reset()
-        color = color_choice()
+        color = cellcolor()
         gen += 1
     t += 1
 ...
 ```
 
-`steps: 148, gen: 0 | born: 53 | killed: 1771 | survived: 224 | loss: 0.000488`
+`steps: 148, gen: 1 | born: 53 | killed: 1771 | survived: 224 | loss: 0.000488`
