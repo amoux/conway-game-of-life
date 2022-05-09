@@ -1,114 +1,204 @@
-import enum
-import random as rand
-from collections import OrderedDict
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+import random
+from collections import OrderedDict, namedtuple
+from typing import (Any, Dict, Iterator, List, NamedTuple, Optional, Tuple,
+                    Union)
 
-from .nearest import NearestNeighbors, encode_neighbors
 from .util import Stats
 
+Point = Tuple[int, int]
 
-@enum.unique
-class CellState(enum.IntEnum):
-    BORN = 0
-    KILLED = 1
-    SURVIVED = 2
+id_to_label = ["dead", "alive"]
+DEFAULT_SHAPE = (16, 32)
+DEAD_CELL = 0
+ALIVE_CELL = 1
+
+Observation = namedtuple(
+    'Observation', ['born', 'killed', 'survived'])
+
+
+class GridTable(Dict):
+    def hidden(self):
+        return self.get('hidden', [])
+
+    def visible(self):
+        return self.get('visible', [])
+
+
+class NeighborNode(NamedTuple):
+    state: int
+    label: str
+    loc: Point
+
+    def __repr__(self):
+        return f"NeighborNode({self.label}, loc={self.loc})"
+
+
+class NeighborList(List[NeighborNode]):
+    alive: int = 0
+
+    def __new__(cls, iterable=[]):
+        return super().__new__(cls, iterable)
+
+    def get_alive_cells(self) -> List[NeighborNode]:
+        return list(filter(lambda cell: cell.state == 1, self))
+
+    def get_dead_cells(self) -> List[NeighborNode]:
+        return list(filter(lambda cell: cell.state == 0, self))
+
+    def linearsearch(self, loc: Point) -> Optional[NeighborNode]:
+        for cell in self:
+            if cell.loc == loc:
+                return cell
+        return None
+
+    def set_alive(self, alive: int):
+        self.alive = alive
+        return self
+
+    def add(self, state: int, loc: Tuple[int, int]):
+        self.append(NeighborNode(state, id_to_label[state], loc))
+
+    @staticmethod
+    def points() -> List[Point]:
+        p = []
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                if i == 0 and j == 0:
+                    continue
+                p.append((i, j))
+        return p
+
+    def __repr__(self) -> str:
+        return "{}(alive={}, size={})".format(
+            self.__class__.__name__, self.alive, len(self))
 
 
 class Grid(object):
     """Base body for an individual cell."""
+    kernels = NeighborList.points()
 
-    def __init__(self, nrows: int = 16, ncols: int = 32, probe: int = 7):
-        self.nrows = nrows
-        self.ncols = ncols
-        self.probe = probe
-        self.root = self.init()
-        self.hidden = self.base()
+    def __init__(self, *shape: Any, p: float = 0.5, **kwargs: Any):
+        shape = kwargs.get('shape', shape)
+        if len(shape) > 0 and isinstance(shape[0], (tuple, list)):
+            shape = tuple(shape[0])
+        if not shape:
+            shape = DEFAULT_SHAPE
+        if len(shape) != 2:
+            raise ValueError('shape must be a tuple pair of size 2')
+        if shape[0] < 3 and shape[1] < 3:
+            raise ValueError('shape must be at least 3x3')
+        p = float(p)
+        if p > 1 or p < 0:
+            raise ValueError('p must be between 0.0 and 1.0')
+        self.shape = shape
+        self.size = shape[0] * shape[1]
+        self.p = p
+        self.visible = self.bernoulli(p)
+        self.hidden = self.zeros()
 
-    def state(self) -> int:
-        return 1 if rand.randint(0, self.probe) == 0 else 0
+    def reset(self, p: Optional[float] = None):
+        if p is None:
+            p = self.p
+        self.visible = self.bernoulli(p)
+        self.hidden = self.zeros()
+        return self
 
-    def base(self) -> List[List[int]]:
-        return [[0 for col in range(self.ncols)]
-                for row in range(self.nrows)]
+    def grid_shape(self):
+        return self.shape
 
-    def init(self) -> List[List[int]]:
-        grid = self.base()
-        for row in range(self.nrows):
-            for col in range(self.ncols):
-                grid[row][col] = self.state()
-        return grid
+    def grid_table(self) -> GridTable:
+        return GridTable(visible=self.visible, hidden=self.hidden)
+
+    def zeros(self) -> List[List[int]]:
+        return [[0 for col in range(self.shape[1])]
+                for row in range(self.shape[0])]
+
+    def bernoulli(self, p=0.5):
+        return [[int(random.uniform(0, 1) < p) for col in range(self.shape[1])]
+                for row in range(self.shape[0])]
 
     def flatten(self) -> Tuple[List[int], List[int]]:
         def flat(x):
             return [j for i in x for j in i]
-        root, hidden = map(flat, (self.root, self.hidden))
-        return root, hidden
+        visible, hidden = map(flat, (self.visible, self.hidden))
+        return visible, hidden
 
-    def invert(self) -> None:
-        """Inverse the root and hidden grids in-place.
-        ```python
-        grid = Grid()  # initial: root | hidden
-        grid.invert()  # method : hidden | root
-         ~ grid        # bitwise: root | hidden
-        ```
-        """
+    def invert(self):
+        """Invert the visible and hidden grids in-place."""
         self.__invert__()
+        return self
+
+    def orthogonal(self, stride: int, fill_value=1, matrix=None):
+        if matrix is None:
+            matrix = self.zeros()
+        m, n = self.shape
+        for (ik, jk) in self.kernels:
+            matrix[(ik + stride) % m][(jk + stride) % n] = fill_value
+        return matrix
 
     def __invert__(self):
-        self.root, self.hidden = self.hidden, self.root
+        self.visible, self.hidden = self.hidden, self.visible
+
+    def __getitem__(self, item) -> Tuple[List[int], List[int]]:
+        return self.visible[item], self.hidden[item]
 
 
 class Cell(Grid):
-    dead_id = 0
-    alive_id = 1
+    dead_id = DEAD_CELL
+    alive_id = ALIVE_CELL
+    directions = NeighborList.points()
 
-    def __init__(self, shape: Tuple[int, int] = (16, 32), probe: int = 7):
-        assert sum((shape)) >= 6, \
-            f'A grid most be of shape `6x6` or greater, not {shape}'
-        super(Cell, self).__init__(*shape, probe)
-        self.shape = shape
-        self.nn: Optional[NearestNeighbors] = None
-        self.size: int = self.shape[0] * self.shape[1]
+    def __init__(self, *shape: Any, p: float = 0.5, **kwargs: Any):
+        super(Cell, self).__init__(*shape, p=p, **kwargs)
+        self.neighbors: Optional[NeighborList] = None
 
-    def grids(self) -> Dict[str, List[List[int]]]:
-        return {'root': self.root, 'hidden': self.hidden}
+    def compute_neighbors(self, *cell_target) -> NeighborList:
+        row, col, m, n = cell_target
+        neighbors = NeighborList()
+        num_alive = 0
+        visible_grid = self.visible
+        for (i, j) in self.directions:
+            i_k, j_k = (i + row) % m, (j + col) % n
+            cell_state = visible_grid[i_k][j_k]
+            num_alive += cell_state
+            neighbors.add(cell_state, (i_k, j_k))
+        return neighbors.set_alive(num_alive)
 
-    def scan(self) -> List[int]:
-        alive_id, dead_id = self.alive_id, self.dead_id
-        shape, nearest_neighbors = self.shape, encode_neighbors
-        observation = [0, 0, 0]  # <born, killed, survived>
-        for i in range(shape[0]):
-            for j in range(shape[1]):
-                self.nn = nearest_neighbors(row=i, col=j, cell=self)
-                num_alive_neighbors = self.nn.alive
-                if num_alive_neighbors < 2 or num_alive_neighbors > 3:
-                    self.hidden[i][j] = dead_id
-                    observation[CellState.KILLED] += 1
-                elif num_alive_neighbors == 3 and self.root[i][j] == 0:
-                    self.hidden[i][j] = alive_id
-                    observation[CellState.BORN] += 1
+    def step(self) -> Observation:
+        m, n = self.grid_shape()
+        visible_grid, hidden_grid = self.visible, self.hidden
+        born, killed, survived = 0, 0, 0
+        for i in range(m):
+            for j in range(n):
+                to_update = self.compute_neighbors(i, j, m, n)
+                num_alive = to_update.alive
+                if num_alive < 2 or num_alive > 3:
+                    hidden_grid[i][j] = DEAD_CELL
+                    killed += 1
+                elif num_alive == 3 and visible_grid[i][j] == 0:
+                    hidden_grid[i][j] = ALIVE_CELL
+                    born += 1
                 else:
-                    self.hidden[i][j] = self.root[i][j]
-                    observation[CellState.SURVIVED] += 1
-        return observation
+                    hidden_grid[i][j] = visible_grid[i][j]
+                    survived += 1
+                self.neighbors = to_update
+        return Observation(born, killed, survived)
 
     def forward(self) -> Stats:
-        obs = self.scan()
-        stats = Stats(*obs)
+        obs = self.step()
         self.invert()
-        return stats
+        return Stats(*obs)
 
-    def reset(self) -> 'Cell':
-        return Cell(self.shape, self.probe)
-
-    def __getitem__(self, idx: int) -> Tuple[List[int], List[int]]:
-        return self.root[idx], self.hidden[idx]
+    def get_alive_neighbors(self, *cell_point, **kwd) -> NeighborList:
+        row = kwd.get('row', cell_point[0])
+        col = kwd.get('col', cell_point[1])
+        return self.compute_neighbors(row, col, *self.grid_shape())
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(shape={self.shape})'
 
 
-class CellBatch(object):
+class CellBatch:
     def __init__(self, cells: List[Cell]):
         self.batch = OrderedDict()
         for i, cell in enumerate(cells):

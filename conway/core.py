@@ -1,16 +1,13 @@
-from dataclasses import asdict
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, Optional, Tuple, Union
 
 from .game import Cell, Stats
-from .util import Function, render_console, render_jupyter
-
+from .util import _setup_render_env
 
 T = Union[Union[Stats, Dict[str, int]],
           Tuple[Union[Stats, Dict[str, int]], float, bool]]
 
 
 def criterion(cell: Cell) -> float:
-    assert isinstance(cell, Cell)
     r, h = cell.flatten()
     size = cell.size
     loss = abs(sum(r) / size - sum(h) / size)
@@ -18,31 +15,15 @@ def criterion(cell: Cell) -> float:
 
 
 class Env:
-    def __init__(
-        self,
-        k: int = 3,
-        probe: int = 7,
-        shape: Tuple[int, int] = (16, 32),
-        return_dict: bool = True,
-        render: Optional[Union[str, Function]] = None,
-        cell: Optional[Cell] = None,
-    ) -> None:
-        self.cell = cell if isinstance(cell, Cell) else Cell(shape, probe)
-        self.return_dict = return_dict
-        self.shape = shape
-        self.probe = probe
+    def __init__(self, cell, k=3, return_dict=True, render=None):
+        if not isinstance(cell, Cell):
+            raise TypeError("cell must be an instance of Cell")
+        self.cell = cell
         self.k = k
+        self.return_dict = return_dict
+        self._render_fn = _setup_render_env(render)
         self.flag = 0
         self.done = False
-        self._render_fn = render
-        if render is not None:
-            if isinstance(render, str):
-                if render.lower() in 'jupyter':
-                    self._render_fn = render_jupyter
-                elif render.lower() in 'console':
-                    self._render_fn = render_console
-            elif callable(render):
-                self._render_fn = render
 
     def render(self, *args, **kwargs) -> None:
         if self._render_fn is None:
@@ -51,13 +32,13 @@ class Env:
             args = (self.cell, *args)
         self._render_fn(*args, **kwargs)
 
-    def grids(self) -> Dict[str, List[List[int]]]:
-        return self.cell.grids()
+    def grid_table(self):
+        return self.cell.grid_table()
 
     def step(self, t: Optional[int] = None, return_dict=True) -> T:
         stats = self.cell.forward()
         if return_dict or self.return_dict:
-            stats = stats.__dict__
+            stats = stats.__dict__  # type: ignore
         if t is not None:
             loss = criterion(self.cell)
             k = self.k
@@ -67,10 +48,11 @@ class Env:
                 self.flag = 0
             self.flag += 1 if loss == 0.0 else 0
             return stats, loss, self.done
-        return stats
+        else:
+            return stats
 
-    def reset(self) -> 'Env':
-        new_cell = self.cell.reset()
+    def reset(self, p: Optional[float] = None) -> 'Env':
+        new_cell = self.cell.reset(p)
         self.cell = new_cell
         self.flag = 0
         self.done = False

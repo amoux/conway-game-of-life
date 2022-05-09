@@ -9,35 +9,35 @@ Construct a new `Cell` object.
 ```python
 import conway
 
-cell = conway.Cell(shape=(5, 5), probe=3)
-cell.grids()
+cell = conway.Cell(5, 5, p=0.5)
+cell.grid_table()
 ...
 ```
 
-Each cell contains two grids; `root` and `hidden` for current and next states.
+Each cell contains two grid_table; `visible` and `hidden` for current and next states.
 
 ```bash
-{'root': [[0, 0, 1, 0, 0],
-  [0, 0, 0, 0, 0],
-  [0, 1, 0, 1, 0],
-  [0, 1, 0, 1, 0],
-  [0, 0, 0, 1, 1]],
+{'visible': [[0, 1, 0, 0, 1],
+             [0, 0, 0, 1, 0],
+             [0, 0, 1, 0, 0],
+             [1, 0, 0, 1, 1],
+             [0, 1, 0, 0, 1]],
  'hidden': [[0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0]]}
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]]}
 ```
 
 Initialize the game of life for a single cell by iterating `num_steps` and calling the `cell.forward()` method.
 
 ```python
-C = conway.Cell(shape=(20, 25), probe=7)
+C = conway.Cell((20, 25), p=0.7)
 
 steps = 50
 for t in range(steps):
-    stats = C.forward()
-    conway.render_jupyter(C, t, stats, ccolor='cy', gcolor='cb')
+    stat = C.forward()
+    conway.render_jupyter(C, t, stat, ccolor='cy', gcolor='cb')
     conway.fps(16)
 ...
 ```
@@ -72,8 +72,8 @@ You can also construct a batch of cells with the `CellBatch` container class.
 
 ```python
 batch = conway.CellBatch([
-    conway.Cell(shape=(14, 17), probe=3),
-    conway.Cell(shape=(15, 20), probe=1)
+    conway.Cell(shape=(14, 17), p=0.3),
+    conway.Cell(shape=(15, 20), p=0.1),
 ])
 print(batch)
 ...
@@ -128,23 +128,27 @@ for C in batch:
 ## Demo script
 
 - `k`: N steps to accumulate (.0 losses) before evaluating a state as *"halted"*.
-- `probe`: Initial population size (e.g., greater value; less alive cells).
+- `p`: Initial population density (0.0 to 1.0). e.g., *{0.2 low, 0.5 medium, 0.8 high}* etc.
 
 ```python
+import random
 from dataclasses import dataclass
-import conway
-from conway import fps, all_blocks
 
-# remove black color in dark theme environments.
+import conway
+from conway import all_blocks, fps
+
+# Remove black color in dark theme environments.
 cell_colors = list(all_blocks.keys())
 cell_colors.pop(cell_colors.index('sb'))
 
-def cellcolor():
-    return conway.rand.choice(cell_colors)
+
+def color_choices():
+    return random.choice(cell_colors)
+
 
 @dataclass
 class Hist:
-    # customize what information to render (optional).
+    # Customize what information to render (optional).
     gen: int = 0
     born: int = 0
     killed: int = 0
@@ -152,28 +156,32 @@ class Hist:
     loss: float = 0.0
 
 env = conway.Env(
+    conway.Cell([32, 64], p=1 - 0.6),
     k=3,
-    probe=7,
-    shape=(32, 64),
-    render='jupyter',
-    return_dict=True,  # also works; env.step(t,return_dict=True)
+    render='console',
+    return_dict=True,
 )
 
 ngens = 5
 t = 0
 gen = 0
-color = cellcolor()  # random cell color per generation.
+rnd_color = color_choices()  # Random cell color per generation.
+
+# Independent sampling probability used for drawing the ~Bernoulli(p) dist.
+p_dist = [round(random.uniform(0.2, 0.8), 1) for p_sample in range(ngens)]
+
 while gen < ngens:
-    stats, loss, done = env.step(t)
-    hist = Hist(gen+1, loss=loss, **stats)
-    env.render(t, hist, ccolor=color)
-    fps(16)
+    stat, loss, done = env.step(t)
+    hist = Hist(gen+1, loss=loss, **stat)
+    env.render(t, hist, ccolor=rnd_color)
+    fps(18)
     if done:
-        env = env.reset()
-        color = cellcolor()
+        next_p = p_dist.pop()
+        env = env.reset(p=next_p)
+        rnd_color = color_choices()
         gen += 1
     t += 1
 ...
 ```
 
-`steps: 148, gen: 1 | born: 53 | killed: 1771 | survived: 224 | loss: 0.000488`
+`steps: 2025, gen: 5 | born: 10 | killed: 1907 | survived: 131 | loss: 0.0`

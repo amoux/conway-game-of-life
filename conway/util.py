@@ -2,12 +2,12 @@ import os
 import sys
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Optional, Union, overload
+from typing import Any, Callable, List, Optional, Union
 
 try:
-    from IPython.display import clear_output
+    from IPython.display import clear_output  # type: ignore
 except ImportError as e:
-    print(e)
+    pass
 
 
 @dataclass
@@ -106,27 +106,30 @@ def render_console(
         cell,
         step: Optional[int] = None,
         stats: Optional[Union[str, Stats]] = None,
-        state: str = "root",
+        state: str = "visible",
         ccolor: str = "cr",
         gcolor: str = "cb"
 ) -> None:
+
     clear_console()
-    output = []
+    output: List[str] = []
+    append = output.append
+
     alive_cell_color = C_COLORS[ccolor]
     dead_cell_color = C_COLORS[gcolor]
-    grid = cell.grids()[state]
+    grid = cell.grid_table()[state]
     header = process_header(stats, step=step)
-    output += [f"{header}\n\r"]
+    append(f"{header}\n\r")
 
     for i in range(cell.shape[0]):
         for j in range(cell.shape[1]):
-            cell_state = ""
+            cell_str = ""
             if grid[i][j] == 0:  # <dead cell id>
-                cell_state = dead_cell_color
+                cell_str = dead_cell_color
             else:
-                cell_state = alive_cell_color
-            output.append(cell_state)
-        output.append("\n\r")
+                cell_str = alive_cell_color
+            append(cell_str)
+        append("\n\r")
 
     padding = C_PADDING * len(alive_cell_color)
     sequence = "".join(output)
@@ -137,28 +140,45 @@ def render_jupyter(
     cell,
     step: Optional[int] = None,
     stats: Optional[Union[str, Stats]] = None,
-    state: str = "root",
+    state: str = "visible",
     ccolor: str = "cr",
     gcolor: str = "cb",
 ) -> None:
-    output = []
+
+    output: List[str] = []
+    append = output.append
+
     alive_cell_color = C_COLORS[ccolor]
     dead_cell_color = C_COLORS[gcolor]
-    grid = cell.grids()[state]
+    grid = cell.grid_table()[state]
     header = process_header(stats, step=step)
-    output += [f"{header}\n\r"]
+    append(f"{header}\n\r")
 
     for i in range(cell.shape[0]):
         for j in range(cell.shape[1]):
-            cell_state = ""
+            cell_str = ""
             if grid[i][j] == 0:  # <dead cell id>
-                cell_state = dead_cell_color
+                cell_str = dead_cell_color
             else:
-                cell_state = alive_cell_color
-            output.append(cell_state)
-        output.append("\n\r")
+                cell_str = alive_cell_color
+            append(cell_str)
+        append("\n\r")
 
     clear_output(True)
     padding = C_PADDING * len(alive_cell_color)
     sequence = "".join(output)
     print(sequence, end=padding)
+
+
+def _setup_render_env(mode):
+    if isinstance(mode, str):
+        if mode == "jupyter":
+            return render_jupyter
+        elif mode == "console":
+            return render_console
+        else:
+            raise ValueError(f"Unknown render mode: {mode}")
+    elif callable(mode):
+        return mode
+    else:
+        raise ValueError(f"Unknown render mode: {mode}")
